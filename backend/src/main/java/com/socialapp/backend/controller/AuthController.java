@@ -1,9 +1,6 @@
 package com.socialapp.backend.controller;
 
-import com.socialapp.backend.dto.LoginRequest;
-import com.socialapp.backend.dto.RegisterRequest;
-import com.socialapp.backend.dto.ResendCodeRequest;
-import com.socialapp.backend.dto.VerifyRequest;
+import com.socialapp.backend.dto.*;
 import com.socialapp.backend.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -41,9 +38,9 @@ public class AuthController {
 
     // Endpoint: POST /api/auth/login[cite: 1]
     @PostMapping("/login")
-    public ResponseEntity<String> login(@Valid @RequestBody LoginRequest request) {
-        String token = authService.login(request);
-        return ResponseEntity.ok(token);
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+        AuthResponse response = authService.login(request);
+        return ResponseEntity.ok(response);
     }
 
 }

@@ -1,10 +1,7 @@
 package com.socialapp.backend.service;
 
 
-import com.socialapp.backend.dto.LoginRequest;
-import com.socialapp.backend.dto.RegisterRequest;
-import com.socialapp.backend.dto.ResendCodeRequest;
-import com.socialapp.backend.dto.VerifyRequest;
+import com.socialapp.backend.dto.*;
 import com.socialapp.backend.entity.User;
 import com.socialapp.backend.entity.VerificationCode;
 import com.socialapp.backend.repository.UserRepository;
@@ -132,22 +129,28 @@ public class AuthService {
         return "Un nou cod de verificare a fost trimis pe email!";
     }
 
-    public String login(LoginRequest request) {
+    public AuthResponse login(LoginRequest request) {
         // 1. Gasim utilizatorul
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new RuntimeException("Email sau parola incorecta!"));
 
-        // 2. Verificam parola folosind BCrypt (comparam hash-ul)[cite: 1]
+        // 2. Verificam parola folosind BCrypt
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new RuntimeException("Email sau parola incorecta!");
         }
 
-        // 3. Verificam daca a activat contul (obligatoriu conform planului)[cite: 1]
+        // 3. Verificam daca a activat contul
         if (!user.isEnabled()) {
             throw new RuntimeException("Contul nu este verificat! Te rugam sa introduci codul primit pe email.");
         }
 
-        // 4. Generam si returnam JWT-ul[cite: 1]
-        return jwtService.generateToken(user);
+        // 4. Generam token-ul si returnam obiectul complet
+        String token = jwtService.generateToken(user);
+
+        return new AuthResponse(
+                token,
+                user.getId(),
+                user.getUsername()
+        );
     }
 }

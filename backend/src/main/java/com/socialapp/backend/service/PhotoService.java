@@ -67,26 +67,38 @@ public class PhotoService {
                 user.getUsername(),
                 savedPhoto.getImageUrl(),
                 savedPhoto.getCaption(),
-                savedPhoto.getCreatedAt()
+                savedPhoto.getCreatedAt(),
+                0,
+                false
+
         );
     }
 
-    public Page<PhotoResponse> getFeed(int page, int size) {
-        // Cream un PageRequest: pagina X, cu Y elemente, sortate descrescator dupa "createdAt"
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
+    public Page<PhotoResponse> getFeed(int page, int size, String currentUserId) {
+        // 1. Găsim utilizatorul curent
+        User currentUser = userRepository.findById(UUID.fromString(currentUserId))
+                .orElseThrow(() -> new RuntimeException("Utilizatorul nu a fost găsit!"));
 
-        // JpaRepository are deja metoda findAll(Pageable) implementata standard
+        // 2. Extragem pozele paginate
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Page<Photo> photos = photoRepository.findAll(pageRequest);
 
-        // Mapam entitatile Photo in PhotoResponse (DTO-ul nostru)
-        return photos.map(photo -> new PhotoResponse(
-                photo.getId(),
-                photo.getUser().getId(),
-                photo.getUser().getUsername(),
-                photo.getImageUrl(),
-                photo.getCaption(),
-                photo.getCreatedAt()
-        ));
+        // 3. Mapăm fiecare poză calculând dinamic like-urile
+        return photos.map(photo -> {
+            long likeCount = photoLikeRepository.countByPhoto(photo);
+            boolean isLiked = photoLikeRepository.existsByUserAndPhoto(currentUser, photo);
+
+            return new PhotoResponse(
+                    photo.getId(),
+                    photo.getUser().getId(),
+                    photo.getUser().getUsername(),
+                    photo.getImageUrl(),
+                    photo.getCaption(),
+                    photo.getCreatedAt(),
+                    likeCount,    // <-- Numărul total de like-uri
+                    isLiked       // <-- True/False dacă userul logat a dat like
+            );
+        });
     }
     @Transactional
     public String toggleLike(String photoId, String userId) {

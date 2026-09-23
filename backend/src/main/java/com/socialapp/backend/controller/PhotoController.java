@@ -6,6 +6,7 @@ import com.socialapp.backend.dto.PhotoResponse;
 import com.socialapp.backend.service.PhotoService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -25,12 +26,12 @@ public class PhotoController {
     }
 
     // Endpoint: POST /api/photos[cite: 1]
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<PhotoResponse> uploadPhoto(
-            @RequestParam("file") MultipartFile file,
+            @RequestPart("file") MultipartFile file,
             @RequestParam(value = "caption", required = false) String caption) throws IOException {
 
-        // Extragem ID-ul utilizatorului curent din contextul de securitate popluat de filtrul JWT[cite: 1]
+        // Extragem ID-ul utilizatorului curent din contextul de securitate popluat de filtrul JWT
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String userId = authentication.getName();
 
@@ -43,7 +44,12 @@ public class PhotoController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
-        Page<PhotoResponse> feed = photoService.getFeed(page, size);
+        // Extragem identitatea userului din token-ul JWT
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String currentUserId = authentication.getName();
+
+        // Apelăm metoda actualizată din service
+        Page<PhotoResponse> feed = photoService.getFeed(page, size, currentUserId);
         return ResponseEntity.ok(feed);
     }
     

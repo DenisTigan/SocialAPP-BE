@@ -8,6 +8,8 @@ public record PhotoResponse(
         String username,
         String imageUrl,
         String caption,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        long likeCount,
+        boolean isLikedByCurrentUser
 ) {
 }
