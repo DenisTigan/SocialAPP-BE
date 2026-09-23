@@ -52,19 +52,21 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Adaugă adresele de unde permite frontend-ului să facă request-uri
-        configuration.setAllowedOriginPatterns(List.of("http://localhost:*", "https://*.vercel.app"));
-        // Permite metodele HTTP standard plus OPTIONS (care este folosit de browser pentru pre-flight requests)
+        // 1. Declară explicit originile (înlocuiește portul dacă frontend-ul tău e pe altul)
+        configuration.setAllowedOrigins(List.of(
+                "http://localhost:5173", // pentru Vite
+                "http://localhost:3000", // pentru Create React App
+                "https://domeniul-tau.vercel.app" // Pregătit pentru când dai deploy la frontend
+        ));
+
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
 
-        // Permite trimiterea token-ului JWT în headere
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        // 2. Permite TOATE headerele (Aici se bloca de obicei)
+        configuration.setAllowedHeaders(List.of("*"));
 
-        // Opțional, dar recomandat dacă vei folosi cookie-uri sau sesiuni pe viitor
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        // Aplică regulile pentru absolut toate rutele backend-ului nostru
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
