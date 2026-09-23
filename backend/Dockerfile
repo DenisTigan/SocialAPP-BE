@@ -1,5 +1,5 @@
-# Etapa 1: Construirea aplicației folosind Maven
-FROM maven:3.9.6-eclipse-temurin-17 AS build
+# Etapa 1: Construirea aplicației folosind Maven (Java 21)
+FROM maven:3.9.6-eclipse-temurin-21 AS build
 WORKDIR /app
 
 # Copiem fișierul pom.xml și descărcăm dependențele (ajută la cache)
@@ -10,8 +10,8 @@ RUN mvn dependency:go-offline -B
 COPY src ./src
 RUN mvn clean package -DskipTests
 
-# Etapa 2: Rularea aplicației într-o imagine mai ușoară (JRE)
-FROM eclipse-temurin:17-jre-alpine
+# Etapa 2: Rularea aplicației într-o imagine mai ușoară (JRE 21)
+FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 # Copiem doar fișierul .jar generat în prima etapă
