@@ -57,7 +57,7 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:5173", // pentru Vite
                 "http://localhost:3000", // pentru Create React App
-                "https://domeniul-tau.vercel.app" // Pregătit pentru când dai deploy la frontend
+                "https://social-app-fr.vercel.app/" // Pregătit pentru când dai deploy la frontend
         ));
 
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
