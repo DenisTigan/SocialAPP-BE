@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.security.Principal;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/notifications")
@@ -30,11 +31,9 @@ public class NotificationController {
     }
 
     private User getCurrentUser(Principal principal) {
-        // Adaptează findByEmail cu findByUsername dacă JWT-ul tău are username-ul în subject
-        return userRepository.findByEmail(principal.getName())
+        return userRepository.findById(UUID.fromString(principal.getName()))
                 .orElseThrow(() -> new RuntimeException("User not found"));
     }
-
     @GetMapping("/vapid-public-key")
     public ResponseEntity<Map<String, String>> getVapidPublicKey() {
         return ResponseEntity.ok(Map.of("publicKey", vapidPublicKey));
