@@ -13,18 +13,24 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 public class MessageService {
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate; // <-- Adăugat
+    private final PushNotificationService pushNotificationService; // <-- ADAUGĂ SERVICIUL NOU
 
-    // Injectăm noul serviciu în constructor
-    public MessageService(MessageRepository messageRepository, UserRepository userRepository, SimpMessagingTemplate messagingTemplate) {
+    // Injectăm toate cele 4 dependințe
+    public MessageService(MessageRepository messageRepository,
+                          UserRepository userRepository,
+                          SimpMessagingTemplate messagingTemplate,
+                          PushNotificationService pushNotificationService) {
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
-        this.messagingTemplate = messagingTemplate; // <-- Adăugat
+        this.messagingTemplate = messagingTemplate;
+        this.pushNotificationService = pushNotificationService;
     }
 
     @Transactional
@@ -50,14 +56,32 @@ public class MessageService {
                 savedMessage.getCreatedAt()
         );
 
-        // --- AICI ESTE MAGIA WEBSOCKET ---
-        // Trimitem mesajul instant către destinatar.
-        // Frontend-ul (React/Angular) se va abona la adresa: /user/{receiverId}/queue/messages
+        // Trimiterea WebSocket (pentru când aplicația este deschisă)
         messagingTemplate.convertAndSendToUser(
                 receiverId,
                 "/queue/messages",
                 response
         );
+
+        // --- NOU: VERIFICĂM ȘI TRIMITEM NOTIFICARE PUSH PENTRU CÂND E ÎNCHISĂ ---
+        if (receiver.isNotifyMessages()) {
+            // Scurtăm mesajul dacă e prea lung pentru o notificare
+            String previewText = request.content();
+            if (previewText.length() > 50) {
+                previewText = previewText.substring(0, 47) + "...";
+            }
+
+            final String finalPreview = previewText;
+            // Trimitem asincron pentru a nu întârzia răspunsul HTTP către expeditor
+            CompletableFuture.runAsync(() -> {
+                pushNotificationService.sendToUser(
+                        receiver.getId(),
+                        sender.getUsername() + " ți-a trimis un mesaj",
+                        finalPreview,
+                        "/messages/" + sender.getId() // Aici va duce clicul pe notificare
+                );
+            });
+        }
 
         return response;
     }

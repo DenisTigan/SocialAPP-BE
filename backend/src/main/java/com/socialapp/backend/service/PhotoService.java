@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 public class PhotoService {
@@ -35,22 +36,24 @@ public class PhotoService {
     private final UserRepository userRepository;
     private final PhotoLikeRepository photoLikeRepository;
     private final CommentRepository commentRepository; // <-- Adaugă asta
+    private final PushNotificationService pushNotificationService; // <-- NOU
 
     public PhotoService(Cloudinary cloudinary, PhotoRepository photoRepository,
                         UserRepository userRepository, PhotoLikeRepository photoLikeRepository,
-                        CommentRepository commentRepository) { // <-- Adaugă parametrul aici
+                        CommentRepository commentRepository,
+                        PushNotificationService pushNotificationService) { // <-- NOU
         this.cloudinary = cloudinary;
         this.photoRepository = photoRepository;
         this.userRepository = userRepository;
         this.photoLikeRepository = photoLikeRepository;
-        this.commentRepository = commentRepository; // <-- Atribuie-l aici
+        this.commentRepository = commentRepository;
+        this.pushNotificationService = pushNotificationService; // <-- NOU
     }
     @Transactional
     public PhotoResponse uploadPhoto(MultipartFile file, String caption, String userId) throws IOException {
         User user = userRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new RuntimeException("Utilizatorul nu a fost gasit!"));
 
-        // Trimitere simpla, lasand SDK-ul sa semneze cu API Secret[cite: 1]
         Map uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.emptyMap());
         String imageUrl = uploadResult.get("url").toString();
 
@@ -61,6 +64,22 @@ public class PhotoService {
 
         Photo savedPhoto = photoRepository.save(photo);
 
+        // --- NOTIFICARE ASINCRONĂ PENTRU POSTARE NOUĂ ---
+        CompletableFuture.runAsync(() -> {
+            // 1. Luăm toți userii care au notifyPosts = true, EXCEPTÂND autorul pozei
+            List<User> targetUsers = userRepository.findAllByNotifyPostsTrueAndIdNot(user.getId());
+
+            // 2. Trimitem notificare la fiecare
+            for (User target : targetUsers) {
+                pushNotificationService.sendToUser(
+                        target.getId(),
+                        "Postare nouă",
+                        user.getUsername() + " a postat o poză nouă",
+                        "/feed"
+                );
+            }
+        });
+
         return new PhotoResponse(
                 savedPhoto.getId(),
                 user.getId(),
@@ -70,7 +89,6 @@ public class PhotoService {
                 savedPhoto.getCreatedAt(),
                 0,
                 false
-
         );
     }
 

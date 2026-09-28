@@ -22,70 +22,54 @@ public class User {
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 
-    // Contul ramane inactiv (implicit false) pana la verificare, conform planului
+    // Contul ramane inactiv (implicit false) pana la verificare
     @Column(nullable = false)
     private boolean enabled = false;
+
+    // --- CÂMPURI NOI PENTRU NOTIFICĂRI PUSH ---
+    @Column(name = "notify_messages", nullable = false, columnDefinition = "boolean default true")
+    private boolean notifyMessages = true;
+
+    @Column(name = "notify_posts", nullable = false, columnDefinition = "boolean default true")
+    private boolean notifyPosts = true;
+    // ------------------------------------------
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    // Constructorul gol (fără argumente) este obligatoriu pentru JPA
     public User() {
     }
 
-    // Aceasta metoda va fi rulata automat de Hibernate inainte de insert, pentru a genera data
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
     }
 
-    // --- GETTERS și SETTERS (fără Lombok) ---
+    // --- GETTERS și SETTERS ---
 
-    public UUID getId() {
-        return id;
-    }
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
 
-    public void setId(UUID id) {
-        this.id = id;
-    }
+    public String getUsername() { return username; }
+    public void setUsername(String username) { this.username = username; }
 
-    public String getUsername() {
-        return username;
-    }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
 
-    public void setUsername(String username) {
-        this.username = username;
-    }
+    public String getPasswordHash() { return passwordHash; }
+    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
 
-    public String getEmail() {
-        return email;
-    }
+    public boolean isEnabled() { return enabled; }
+    public void setEnabled(boolean enabled) { this.enabled = enabled; }
 
-    public void setEmail(String email) {
-        this.email = email;
-    }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
-    public String getPasswordHash() {
-        return passwordHash;
-    }
+    // Getters / Setters pentru notificări
+    public boolean isNotifyMessages() { return notifyMessages; }
+    public void setNotifyMessages(boolean notifyMessages) { this.notifyMessages = notifyMessages; }
 
-    public void setPasswordHash(String passwordHash) {
-        this.passwordHash = passwordHash;
-    }
+    public boolean isNotifyPosts() { return notifyPosts; }
+    public void setNotifyPosts(boolean notifyPosts) { this.notifyPosts = notifyPosts; }
 
-    public boolean isEnabled() {
-        return enabled;
-    }
-
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
 }
