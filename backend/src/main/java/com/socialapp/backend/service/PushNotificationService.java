@@ -18,6 +18,7 @@ import java.security.Security;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 
 @Service
 public class PushNotificationService {
@@ -81,26 +82,39 @@ public class PushNotificationService {
     }
 
     private void sendPushMessage(PushSubscription sub, String payload) {
-        try {
-            Notification notification = new Notification(
-                    sub.getEndpoint(),
-                    sub.getP256dh(),
-                    sub.getAuth(),
-                    payload.getBytes()
-            );
+        int maxRetries = 2;
 
-            HttpResponse response = pushService.send(notification);
-            int statusCode = response.getStatusLine().getStatusCode();
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                Notification notification = new Notification(
+                        sub.getEndpoint(),
+                        sub.getP256dh(),
+                        sub.getAuth(),
+                        payload.getBytes()
+                );
 
-            if (statusCode == 404 || statusCode == 410) {
-                logger.info("Abonament expirat (status {}). Ștergem din DB endpoint-ul: {}", statusCode, sub.getEndpoint());
-                subscriptionRepository.delete(sub);
-            } else if (statusCode >= 400) {
-                logger.warn("Serverul de push a returnat status {} pentru endpoint-ul {}", statusCode, sub.getEndpoint());
+                pushService.send(notification);
+                logger.info("=> DEBUG PUSH: Notificare trimisă cu succes la încercarea {}!", attempt);
+                return; // Succes, ieșim din buclă
+
+            } catch (ExecutionException e) {
+                // Dacă este exact eroarea de certificat Google (conexiune reciclată defectă)
+                if (e.getCause() instanceof javax.net.ssl.SSLPeerUnverifiedException) {
+                    logger.warn("=> DEBUG PUSH: Eroare SNI Google detectată (încercarea {}). Se forțează o conexiune nouă...", attempt);
+                    if (attempt == maxRetries) {
+                        logger.error("=> DEBUG PUSH: Eșec definitiv după retry-uri.", e);
+                    } else {
+                        // Pauză scurtă pentru a permite eliberarea socket-ului
+                        try { Thread.sleep(500); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                    }
+                } else {
+                    logger.error("=> DEBUG PUSH: Altă eroare de execuție.", e);
+                    break;
+                }
+            } catch (Exception e) {
+                logger.error("=> DEBUG PUSH: Eroare generală la trimitere.", e);
+                break;
             }
-
-        } catch (Exception e) {
-            logger.error("Nu s-a putut trimite notificarea la endpoint-ul {}", sub.getEndpoint(), e);
         }
     }
 }
