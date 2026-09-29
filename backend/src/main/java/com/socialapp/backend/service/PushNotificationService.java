@@ -68,14 +68,36 @@ public class PushNotificationService {
                 .build();
         customClient.start();
 
-        // 1. Folosim Java Reflection pentru a "sparge" încapsularea librăriei
-        java.lang.reflect.Field httpClientField = PushService.class.getDeclaredField("httpClient");
+        // 1. Căutăm dinamic field-ul clientului HTTP, inclusiv în super-clasele librăriei
+        java.lang.reflect.Field clientField = null;
+        Class<?> clazz = pushService.getClass();
 
-        // 2. Facem câmpul privat accesibil
-        httpClientField.setAccessible(true);
+        while (clazz != null && clazz != Object.class) {
+            for (java.lang.reflect.Field field : clazz.getDeclaredFields()) {
+                if (field.getType().getName().endsWith("HttpAsyncClient")) {
+                    clientField = field;
+                    break;
+                }
+            }
+            if (clientField != null) break;
+            clazz = clazz.getSuperclass();
+        }
 
-        // 3. Suprascriem clientul lor vechi cu clientul nostru modificat
-        httpClientField.set(pushService, customClient);
+        if (clientField != null) {
+            clientField.setAccessible(true);
+
+            // 2. Oprim clientul vechi generat de librărie (ca să nu lăsăm procese "orfane" în memorie)
+            Object oldClient = clientField.get(pushService);
+            if (oldClient instanceof java.io.Closeable) {
+                ((java.io.Closeable) oldClient).close();
+            }
+
+            // 3. Injectăm clientul nostru cu regulile SSL modificate
+            clientField.set(pushService, customClient);
+            logger.info("=> DEBUG: Clientul HTTP custom a fost injectat cu succes prin Reflection!");
+        } else {
+            throw new RuntimeException("Eroare severă: Nu s-a putut găsi clientul HTTP intern în librăria web-push!");
+        }
     }
 
     public void sendToUser(UUID userId, String title, String body, String url) {
