@@ -41,6 +41,8 @@ public class PushNotificationService {
 
     private final PushSubscriptionRepository subscriptionRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    // Inițializăm PushService conform documentației oficiale (pentru request-uri sincrone)
     private PushService pushService;
 
     public PushNotificationService(PushSubscriptionRepository subscriptionRepository) {
@@ -48,65 +50,19 @@ public class PushNotificationService {
     }
 
     @PostConstruct
-    public void init() throws Exception {
-        // Înregistrăm BouncyCastle pentru a cripta mesajele
+    public void init() throws GeneralSecurityException {
         if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
             Security.addProvider(new BouncyCastleProvider());
         }
-
         pushService = new PushService(vapidPublicKey, vapidPrivateKey, vapidSubject);
-
-        // --- FIX DEFINITIV PENTRU EROAREA DE CERTIFICAT GOOGLE ---
-        SSLContext sslContext = SSLContexts.createDefault();
-        SSLIOSessionStrategy sslStrategy = new SSLIOSessionStrategy(
-                sslContext,
-                NoopHostnameVerifier.INSTANCE // Ignoră discrepanța de nume
-        );
-
-        CloseableHttpAsyncClient customClient = HttpAsyncClients.custom()
-                .setSSLStrategy(sslStrategy)
-                .build();
-        customClient.start();
-
-        // 1. Căutăm dinamic field-ul clientului HTTP, inclusiv în super-clasele librăriei
-        java.lang.reflect.Field clientField = null;
-        Class<?> clazz = pushService.getClass();
-
-        while (clazz != null && clazz != Object.class) {
-            for (java.lang.reflect.Field field : clazz.getDeclaredFields()) {
-                if (field.getType().getName().endsWith("HttpAsyncClient")) {
-                    clientField = field;
-                    break;
-                }
-            }
-            if (clientField != null) break;
-            clazz = clazz.getSuperclass();
-        }
-
-        if (clientField != null) {
-            clientField.setAccessible(true);
-
-            // 2. Oprim clientul vechi generat de librărie (ca să nu lăsăm procese "orfane" în memorie)
-            Object oldClient = clientField.get(pushService);
-            if (oldClient instanceof java.io.Closeable) {
-                ((java.io.Closeable) oldClient).close();
-            }
-
-            // 3. Injectăm clientul nostru cu regulile SSL modificate
-            clientField.set(pushService, customClient);
-            logger.info("=> DEBUG: Clientul HTTP custom a fost injectat cu succes prin Reflection!");
-        } else {
-            throw new RuntimeException("Eroare severă: Nu s-a putut găsi clientul HTTP intern în librăria web-push!");
-        }
     }
 
     public void sendToUser(UUID userId, String title, String body, String url) {
         List<PushSubscription> subscriptions = subscriptionRepository.findAllByUser_Id(userId);
-
         logger.info("=> DEBUG PUSH: sendToUser a fost apelat pentru userId={}, subscriptions găsite în DB={}", userId, subscriptions.size());
 
         if (subscriptions.isEmpty()) {
-            logger.warn("=> DEBUG PUSH: Anulat! Userul {} nu are niciun device abonat în tabelul PushSubscription.", userId);
+            logger.warn("=> DEBUG PUSH: Anulat! Userul {} nu are niciun device abonat.", userId);
             return;
         }
 
@@ -122,7 +78,7 @@ public class PushNotificationService {
                 sendPushMessage(sub, payload);
             }
         } catch (Exception e) {
-            logger.error("Eroare la parsarea sau trimiterea notificărilor pentru userul {}", userId, e);
+            logger.error("=> DEBUG PUSH EROARE: Eroare la parsarea sau trimiterea notificărilor", e);
         }
     }
 
@@ -140,11 +96,11 @@ public class PushNotificationService {
 
                 pushService.send(notification);
                 logger.info("=> DEBUG PUSH: Notificare trimisă cu succes la încercarea {}!", attempt);
-                return; // Succes, ieșim din buclă
+                return; // Succes! Ieșim din loop.
 
             } catch (ExecutionException e) {
                 if (e.getCause() instanceof javax.net.ssl.SSLPeerUnverifiedException) {
-                    logger.warn("=> DEBUG PUSH: Eroare SNI Google detectată (încercarea {}). Se forțează o conexiune nouă...", attempt);
+                    logger.warn("=> DEBUG PUSH: Eroare SNI detectată (încercarea {}). Se reîncearcă conexiunea...", attempt);
                     if (attempt == maxRetries) {
                         logger.error("=> DEBUG PUSH: Eșec definitiv după retry-uri.", e);
                     } else {
