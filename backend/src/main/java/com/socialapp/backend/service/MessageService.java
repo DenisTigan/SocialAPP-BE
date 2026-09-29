@@ -8,6 +8,8 @@ import com.socialapp.backend.entity.Message;
 import com.socialapp.backend.entity.User;
 import com.socialapp.backend.repository.MessageRepository;
 import com.socialapp.backend.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +23,8 @@ public class MessageService {
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate; // <-- Adăugat
     private final PushNotificationService pushNotificationService; // <-- ADAUGĂ SERVICIUL NOU
+
+    private static final Logger logger = LoggerFactory.getLogger(MessageService.class);
 
     // Injectăm toate cele 4 dependințe
     public MessageService(MessageRepository messageRepository,
@@ -63,8 +67,15 @@ public class MessageService {
                 response
         );
 
+
+        logger.info("=> DEBUG MESSAGE: Verificăm preferințele pentru receiver-ul (ID: {}). isNotifyMessages real din DB = {}", receiver.getId(), receiver.isNotifyMessages());
+
         // --- NOU: VERIFICĂM ȘI TRIMITEM NOTIFICARE PUSH PENTRU CÂND E ÎNCHISĂ ---
         if (receiver.isNotifyMessages()) {
+
+            logger.info("=> DEBUG MESSAGE: isNotifyMessages este TRUE. Se apelează sendToUser asincron...");
+
+
             // Scurtăm mesajul dacă e prea lung pentru o notificare
             String previewText = request.content();
             if (previewText.length() > 50) {
@@ -81,6 +92,8 @@ public class MessageService {
                         "/messages/" + sender.getId() // Aici va duce clicul pe notificare
                 );
             });
+        }else {
+            logger.warn("=> DEBUG MESSAGE: Nu s-a apelat sendToUser deoarece isNotifyMessages este FALSE!");
         }
 
         return response;

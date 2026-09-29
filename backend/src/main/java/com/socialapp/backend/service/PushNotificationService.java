@@ -54,7 +54,10 @@ public class PushNotificationService {
     public void sendToUser(UUID userId, String title, String body, String url) {
         List<PushSubscription> subscriptions = subscriptionRepository.findAllByUser_Id(userId);
 
+        logger.info("=> DEBUG PUSH: sendToUser a fost apelat pentru userId={}, subscriptions găsite în DB={}", userId, subscriptions.size());
+
         if (subscriptions.isEmpty()) {
+            logger.warn("=> DEBUG PUSH: Anulat! Userul {} nu are niciun device abonat în tabelul PushSubscription.", userId);
             return; // Userul nu are niciun device abonat
         }
 
@@ -68,6 +71,7 @@ public class PushNotificationService {
 
             // Trimitem la fiecare device pe care utilizatorul e logat
             for (PushSubscription sub : subscriptions) {
+                logger.info("=> DEBUG PUSH: Se trimite notificarea către endpoint-ul: {}", sub.getEndpoint());
                 sendPushMessage(sub, payload);
             }
         } catch (Exception e) {
