@@ -18,13 +18,14 @@ public class JwtService {
     @Value("${jwt.secret}")
     private String secretKey;
 
-    // Token-ul va fi valabil 24 de ore
-    private static final long EXPIRATION_TIME = 86400000;
+    // MODIFICAT: Token-ul este acum valabil 30 de zile (în loc de 24 de ore)
+    // Folosim 'L' la final ca să nu facă integer overflow în Java!
+    private static final long EXPIRATION_TIME = 30L * 24 * 60 * 60 * 1000;
 
     public String generateToken(User user) {
         return Jwts.builder()
-                .subject(user.getId().toString()) // Punem UUID-ul utilizatorului in payload
-                .claim("username", user.getUsername()) // Putem adauga si alte date utile[cite: 1]
+                .subject(user.getId().toString())
+                .claim("username", user.getUsername())
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
                 .signWith(getSignInKey())
@@ -40,13 +41,11 @@ public class JwtService {
         return extractClaim(token, Claims::getSubject);
     }
 
-    // Extrage o informatie specifica
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         final Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);
     }
 
-    // Verifica daca token-ul este inca valid (semnatura corecta si neexpirat)
     public boolean isTokenValid(String token) {
         try {
             return !isTokenExpired(token);
@@ -59,7 +58,6 @@ public class JwtService {
         return extractClaim(token, Claims::getExpiration).before(new Date());
     }
 
-    // Citeste tot payload-ul token-ului folosind cheia secreta
     private Claims extractAllClaims(String token) {
         return Jwts.parser()
                 .verifyWith(getSignInKey())
