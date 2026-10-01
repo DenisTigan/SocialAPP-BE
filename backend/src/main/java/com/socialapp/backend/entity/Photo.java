@@ -22,7 +22,11 @@ public class Photo {
     @Column(name = "image_url", nullable = false, length = 500)
     private String imageUrl;
 
-    // Descriere scurta, optionala[cite: 1]
+    // NOU: ID-ul din Cloudinary pentru a putea șterge imaginea din cloud
+    @Column(name = "public_id", length = 255)
+    private String publicId;
+
+    // Descriere scurta, optionala
     @Column(length = 500)
     private String caption;
 
@@ -39,19 +43,51 @@ public class Photo {
 
     // --- GETTERS și SETTERS ---
 
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
+    public UUID getId() {
+        return id;
+    }
 
-    public User getUser() { return user; }
-    public void setUser(User user) { this.user = user; }
+    public void setId(UUID id) {
+        this.id = id;
+    }
 
-    public String getImageUrl() { return imageUrl; }
-    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    public User getUser() {
+        return user;
+    }
 
-    public String getCaption() { return caption; }
-    public void setCaption(String caption) { this.caption = caption; }
+    public void setUser(User user) {
+        this.user = user;
+    }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public String getImageUrl() {
+        return imageUrl;
+    }
 
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+
+    public String getPublicId() {
+        return publicId;
+    }
+
+    public void setPublicId(String publicId) {
+        this.publicId = publicId;
+    }
+
+    public String getCaption() {
+        return caption;
+    }
+
+    public void setCaption(String caption) {
+        this.caption = caption;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
 }

@@ -12,11 +12,12 @@ import java.util.UUID;
 @Repository
 public interface PhotoLikeRepository extends JpaRepository<PhotoLike, UUID> {
     Optional<PhotoLike> findByUserAndPhoto(User user, Photo photo);
-    // Adaugate acum:
     long countByPhoto(Photo photo);
     boolean existsByUserAndPhoto(User user, Photo photo);
-
     long countByPhoto_User(User user);
+
+    // --- NOU: Șterge toate like-urile unei poze când poza este ștearsă ---
+    void deleteByPhoto(Photo photo);
 }
 
 

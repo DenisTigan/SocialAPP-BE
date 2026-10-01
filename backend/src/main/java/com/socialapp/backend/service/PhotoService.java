@@ -5,6 +5,7 @@ import com.cloudinary.utils.ObjectUtils;
 import com.socialapp.backend.dto.CommentRequest;
 import com.socialapp.backend.dto.CommentResponse;
 import com.socialapp.backend.dto.PhotoResponse;
+import com.socialapp.backend.dto.UpdatePhotoRequest;
 import com.socialapp.backend.entity.Comment;
 import com.socialapp.backend.entity.Photo;
 import com.socialapp.backend.entity.PhotoLike;
@@ -13,6 +14,8 @@ import com.socialapp.backend.repository.CommentRepository;
 import com.socialapp.backend.repository.PhotoLikeRepository;
 import com.socialapp.backend.repository.PhotoRepository;
 import com.socialapp.backend.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -29,6 +32,8 @@ import java.util.concurrent.CompletableFuture;
 
 @Service
 public class PhotoService {
+
+    private static final Logger logger = LoggerFactory.getLogger(PhotoService.class);
 
     private final Cloudinary cloudinary;
     private final PhotoRepository photoRepository;
@@ -55,11 +60,13 @@ public class PhotoService {
                 .orElseThrow(() -> new RuntimeException("Utilizatorul nu a fost gasit!"));
 
         Map uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.emptyMap());
-        String imageUrl = uploadResult.get("secure_url").toString(); // Folosim secure_url (HTTPS)
+        String imageUrl = uploadResult.get("secure_url").toString();
+        String publicId = uploadResult.get("public_id").toString(); // <-- NOU
 
         Photo photo = new Photo();
         photo.setUser(user);
         photo.setImageUrl(imageUrl);
+        photo.setPublicId(publicId); // <-- Salvăm public_id pentru ștergere ulterioară
         photo.setCaption(caption);
 
         Photo savedPhoto = photoRepository.save(photo);
@@ -81,7 +88,7 @@ public class PhotoService {
                 savedPhoto.getId(),
                 user.getId(),
                 user.getUsername(),
-                user.getAvatarUrl(), // <-- NOU
+                user.getAvatarUrl(),
                 savedPhoto.getImageUrl(),
                 savedPhoto.getCaption(),
                 savedPhoto.getCreatedAt(),
@@ -105,7 +112,7 @@ public class PhotoService {
                     photo.getId(),
                     photo.getUser().getId(),
                     photo.getUser().getUsername(),
-                    photo.getUser().getAvatarUrl(), // <-- NOU
+                    photo.getUser().getAvatarUrl(),
                     photo.getImageUrl(),
                     photo.getCaption(),
                     photo.getCreatedAt(),
@@ -115,7 +122,6 @@ public class PhotoService {
         });
     }
 
-    // --- NOU: Obține toate pozele unui utilizator specific (pentru pagina de profil) ---
     public List<PhotoResponse> getUserPhotos(String targetUserId, String currentUserId) {
         User targetUser = userRepository.findById(UUID.fromString(targetUserId))
                 .orElseThrow(() -> new RuntimeException("Utilizatorul căutat nu a fost găsit!"));
@@ -143,6 +149,70 @@ public class PhotoService {
                     );
                 })
                 .toList();
+    }
+
+    // --- NOU: EDITARE DESCRIERE (CAPTION) POZĂ ---
+    @Transactional
+    public PhotoResponse updatePhotoCaption(String photoId, String userId, UpdatePhotoRequest request) {
+        Photo photo = photoRepository.findById(UUID.fromString(photoId))
+                .orElseThrow(() -> new RuntimeException("Fotografia nu a fost găsită!"));
+
+        User currentUser = userRepository.findById(UUID.fromString(userId))
+                .orElseThrow(() -> new RuntimeException("Utilizatorul nu a fost găsit!"));
+
+        if (!photo.getUser().getId().equals(currentUser.getId())) {
+            throw new RuntimeException("Nu ai permisiunea să editezi această postare!");
+        }
+
+        String newCaption = request.caption() != null ? request.caption().trim() : "";
+        if (newCaption.length() > 500) {
+            throw new RuntimeException("Descrierea nu poate depăși 500 de caractere!");
+        }
+
+        photo.setCaption(newCaption);
+        Photo savedPhoto = photoRepository.save(photo);
+
+        long likeCount = photoLikeRepository.countByPhoto(savedPhoto);
+        boolean isLiked = photoLikeRepository.existsByUserAndPhoto(currentUser, savedPhoto);
+
+        return new PhotoResponse(
+                savedPhoto.getId(),
+                currentUser.getId(),
+                currentUser.getUsername(),
+                currentUser.getAvatarUrl(),
+                savedPhoto.getImageUrl(),
+                savedPhoto.getCaption(),
+                savedPhoto.getCreatedAt(),
+                likeCount,
+                isLiked
+        );
+    }
+
+    // --- NOU: ȘTERGERE POZĂ (DB + CLOUDINARY + LIKES + COMMENTS) ---
+    @Transactional
+    public void deletePhoto(String photoId, String userId) {
+        Photo photo = photoRepository.findById(UUID.fromString(photoId))
+                .orElseThrow(() -> new RuntimeException("Fotografia nu a fost găsită!"));
+
+        if (!photo.getUser().getId().toString().equals(userId)) {
+            throw new RuntimeException("Nu ai permisiunea să ștergi această postare!");
+        }
+
+        // 1. Ștergem întâi like-urile și comentariile asociate pozei (evităm Foreign Key error)
+        photoLikeRepository.deleteByPhoto(photo);
+        commentRepository.deleteByPhoto(photo);
+
+        // 2. Ștergem fișierul din Cloudinary (dacă are publicId salvat)
+        if (photo.getPublicId() != null && !photo.getPublicId().isEmpty()) {
+            try {
+                cloudinary.uploader().destroy(photo.getPublicId(), ObjectUtils.emptyMap());
+            } catch (Exception e) {
+                logger.warn("=> WARN: Nu s-a putut șterge poza din Cloudinary (publicId={}): {}", photo.getPublicId(), e.getMessage());
+            }
+        }
+
+        // 3. Ștergem poza din baza de date
+        photoRepository.delete(photo);
     }
 
     @Transactional
@@ -178,7 +248,7 @@ public class PhotoService {
         Comment comment = new Comment();
         comment.setUser(user);
         comment.setPhoto(photo);
-        comment.setText(request.text());
+        comment.setText(request.text().trim());
 
         Comment savedComment = commentRepository.save(comment);
 
@@ -186,7 +256,7 @@ public class PhotoService {
                 savedComment.getId(),
                 user.getId(),
                 user.getUsername(),
-                user.getAvatarUrl(), // <-- NOU
+                user.getAvatarUrl(),
                 savedComment.getText(),
                 savedComment.getCreatedAt()
         );
@@ -203,10 +273,49 @@ public class PhotoService {
                         comment.getId(),
                         comment.getUser().getId(),
                         comment.getUser().getUsername(),
-                        comment.getUser().getAvatarUrl(), // <-- NOU
+                        comment.getUser().getAvatarUrl(),
                         comment.getText(),
                         comment.getCreatedAt()
                 ))
                 .toList();
+    }
+
+    // --- NOU: EDITARE COMENTARIU PROPRIU ---
+    @Transactional
+    public CommentResponse updateComment(String commentId, String userId, CommentRequest request) {
+        Comment comment = commentRepository.findById(UUID.fromString(commentId))
+                .orElseThrow(() -> new RuntimeException("Comentariul nu a fost găsit!"));
+
+        if (!comment.getUser().getId().toString().equals(userId)) {
+            throw new RuntimeException("Nu poți edita comentariul altui utilizator!");
+        }
+
+        comment.setText(request.text().trim());
+        Comment savedComment = commentRepository.save(comment);
+
+        return new CommentResponse(
+                savedComment.getId(),
+                savedComment.getUser().getId(),
+                savedComment.getUser().getUsername(),
+                savedComment.getUser().getAvatarUrl(),
+                savedComment.getText(),
+                savedComment.getCreatedAt()
+        );
+    }
+
+    // --- NOU: ȘTERGERE COMENTARIU (Autorul comentariului SAU Proprietarul pozei) ---
+    @Transactional
+    public void deleteComment(String commentId, String userId) {
+        Comment comment = commentRepository.findById(UUID.fromString(commentId))
+                .orElseThrow(() -> new RuntimeException("Comentariul nu a fost găsit!"));
+
+        boolean isCommentAuthor = comment.getUser().getId().toString().equals(userId);
+        boolean isPhotoOwner = comment.getPhoto().getUser().getId().toString().equals(userId);
+
+        if (!isCommentAuthor && !isPhotoOwner) {
+            throw new RuntimeException("Nu ai permisiunea să ștergi acest comentariu!");
+        }
+
+        commentRepository.delete(comment);
     }
 }

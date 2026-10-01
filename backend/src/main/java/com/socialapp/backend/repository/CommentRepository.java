@@ -11,4 +11,5 @@ import java.util.UUID;
 @Repository
 public interface CommentRepository extends JpaRepository<Comment, UUID> {
     List<Comment> findByPhotoOrderByCreatedAtAsc(Photo photo);
+    void deleteByPhoto(Photo photo);
 }
