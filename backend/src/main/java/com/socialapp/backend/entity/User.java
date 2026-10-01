@@ -26,13 +26,23 @@ public class User {
     @Column(nullable = false)
     private boolean enabled = false;
 
-    // --- CÂMPURI NOI PENTRU NOTIFICĂRI PUSH ---
+    // --- CÂMPURI PENTRU NOTIFICĂRI PUSH ---
     @Column(name = "notify_messages", nullable = false, columnDefinition = "boolean default true")
     private boolean notifyMessages = true;
 
     @Column(name = "notify_posts", nullable = false, columnDefinition = "boolean default true")
     private boolean notifyPosts = true;
-    // ------------------------------------------
+
+    // --- CÂMPURI NOI PENTRU PROFIL ---
+    @Column(name = "bio", length = 300)
+    private String bio;
+
+    @Column(name = "avatar_url", length = 500)
+    private String avatarUrl;
+
+    @Column(name = "avatar_public_id", length = 255)
+    private String avatarPublicId;
+    // ---------------------------------
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -47,29 +57,93 @@ public class User {
 
     // --- GETTERS și SETTERS ---
 
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
+    public UUID getId() {
+        return id;
+    }
 
-    public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
+    public void setId(UUID id) {
+        this.id = id;
+    }
 
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
+    public String getUsername() {
+        return username;
+    }
 
-    public String getPasswordHash() { return passwordHash; }
-    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+    public void setUsername(String username) {
+        this.username = username;
+    }
 
-    public boolean isEnabled() { return enabled; }
-    public void setEnabled(boolean enabled) { this.enabled = enabled; }
+    public String getEmail() {
+        return email;
+    }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public void setEmail(String email) {
+        this.email = email;
+    }
 
-    // Getters / Setters pentru notificări
-    public boolean isNotifyMessages() { return notifyMessages; }
-    public void setNotifyMessages(boolean notifyMessages) { this.notifyMessages = notifyMessages; }
+    public String getPasswordHash() {
+        return passwordHash;
+    }
 
-    public boolean isNotifyPosts() { return notifyPosts; }
-    public void setNotifyPosts(boolean notifyPosts) { this.notifyPosts = notifyPosts; }
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public boolean isNotifyMessages() {
+        return notifyMessages;
+    }
+
+    public void setNotifyMessages(boolean notifyMessages) {
+        this.notifyMessages = notifyMessages;
+    }
+
+    public boolean isNotifyPosts() {
+        return notifyPosts;
+    }
+
+    public void setNotifyPosts(boolean notifyPosts) {
+        this.notifyPosts = notifyPosts;
+    }
+
+    // Getters / Setters noi pentru profil
+    public String getBio() {
+        return bio;
+    }
+
+    public void setBio(String bio) {
+        this.bio = bio;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
+    }
+
+    public String getAvatarPublicId() {
+        return avatarPublicId;
+    }
+
+    public void setAvatarPublicId(String avatarPublicId) {
+        this.avatarPublicId = avatarPublicId;
+    }
 
 }

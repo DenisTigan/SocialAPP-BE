@@ -21,12 +21,11 @@ import java.util.concurrent.CompletableFuture;
 public class MessageService {
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
-    private final SimpMessagingTemplate messagingTemplate; // <-- Adăugat
-    private final PushNotificationService pushNotificationService; // <-- ADAUGĂ SERVICIUL NOU
+    private final SimpMessagingTemplate messagingTemplate;
+    private final PushNotificationService pushNotificationService;
 
     private static final Logger logger = LoggerFactory.getLogger(MessageService.class);
 
-    // Injectăm toate cele 4 dependințe
     public MessageService(MessageRepository messageRepository,
                           UserRepository userRepository,
                           SimpMessagingTemplate messagingTemplate,
@@ -60,39 +59,32 @@ public class MessageService {
                 savedMessage.getCreatedAt()
         );
 
-        // Trimiterea WebSocket (pentru când aplicația este deschisă)
         messagingTemplate.convertAndSendToUser(
                 receiverId,
                 "/queue/messages",
                 response
         );
 
-
         logger.info("=> DEBUG MESSAGE: Verificăm preferințele pentru receiver-ul (ID: {}). isNotifyMessages real din DB = {}", receiver.getId(), receiver.isNotifyMessages());
 
-        // --- NOU: VERIFICĂM ȘI TRIMITEM NOTIFICARE PUSH PENTRU CÂND E ÎNCHISĂ ---
         if (receiver.isNotifyMessages()) {
-
             logger.info("=> DEBUG MESSAGE: isNotifyMessages este TRUE. Se apelează sendToUser asincron...");
 
-
-            // Scurtăm mesajul dacă e prea lung pentru o notificare
             String previewText = request.content();
             if (previewText.length() > 50) {
                 previewText = previewText.substring(0, 47) + "...";
             }
 
             final String finalPreview = previewText;
-            // Trimitem asincron pentru a nu întârzia răspunsul HTTP către expeditor
             CompletableFuture.runAsync(() -> {
                 pushNotificationService.sendToUser(
                         receiver.getId(),
                         sender.getUsername() + " ți-a trimis un mesaj",
                         finalPreview,
-                        "/messages/" + sender.getId() // Aici va duce clicul pe notificare
+                        "/messages/" + sender.getId()
                 );
             });
-        }else {
+        } else {
             logger.warn("=> DEBUG MESSAGE: Nu s-a apelat sendToUser deoarece isNotifyMessages este FALSE!");
         }
 
@@ -106,7 +98,6 @@ public class MessageService {
         User partner = userRepository.findById(UUID.fromString(partnerId))
                 .orElseThrow(() -> new RuntimeException("Partenerul de discuție nu a fost găsit!"));
 
-        // Apelăm query-ul personalizat care aduce mesajele din ambele sensuri
         List<Message> history = messageRepository.findChatHistory(currentUser, partner);
 
         return history.stream()
@@ -124,21 +115,18 @@ public class MessageService {
         User user = userRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new RuntimeException("Utilizatorul nu a fost găsit!"));
 
-        // 1. Luăm toate mesajele userului, deja sortate descrescător (cele mai noi primele)
         List<Message> allMessages = messageRepository.findBySenderOrReceiverOrderByCreatedAtDesc(user, user);
 
-        // 2. Folosim un LinkedHashMap pentru a păstra ordinea cronologică și a elimina duplicatele de parteneri
         Map<UUID, ConversationResponse> conversations = new LinkedHashMap<>();
 
         for (Message msg : allMessages) {
-            // Determinăm cine este "celălalt" utilizator din mesaj
             User partner = msg.getSender().equals(user) ? msg.getReceiver() : msg.getSender();
 
-            // Dacă nu am adăugat deja o conversație cu acest partener, o adăugăm (fiind prima, e și cea mai recentă)
             if (!conversations.containsKey(partner.getId())) {
                 conversations.put(partner.getId(), new ConversationResponse(
                         partner.getId(),
                         partner.getUsername(),
+                        partner.getAvatarUrl(), // <-- NOU
                         msg.getContent(),
                         msg.getCreatedAt()
                 ));

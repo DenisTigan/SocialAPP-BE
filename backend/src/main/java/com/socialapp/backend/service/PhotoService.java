@@ -30,32 +30,32 @@ import java.util.concurrent.CompletableFuture;
 @Service
 public class PhotoService {
 
-
     private final Cloudinary cloudinary;
     private final PhotoRepository photoRepository;
     private final UserRepository userRepository;
     private final PhotoLikeRepository photoLikeRepository;
-    private final CommentRepository commentRepository; // <-- Adaugă asta
-    private final PushNotificationService pushNotificationService; // <-- NOU
+    private final CommentRepository commentRepository;
+    private final PushNotificationService pushNotificationService;
 
     public PhotoService(Cloudinary cloudinary, PhotoRepository photoRepository,
                         UserRepository userRepository, PhotoLikeRepository photoLikeRepository,
                         CommentRepository commentRepository,
-                        PushNotificationService pushNotificationService) { // <-- NOU
+                        PushNotificationService pushNotificationService) {
         this.cloudinary = cloudinary;
         this.photoRepository = photoRepository;
         this.userRepository = userRepository;
         this.photoLikeRepository = photoLikeRepository;
         this.commentRepository = commentRepository;
-        this.pushNotificationService = pushNotificationService; // <-- NOU
+        this.pushNotificationService = pushNotificationService;
     }
+
     @Transactional
     public PhotoResponse uploadPhoto(MultipartFile file, String caption, String userId) throws IOException {
         User user = userRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new RuntimeException("Utilizatorul nu a fost gasit!"));
 
         Map uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.emptyMap());
-        String imageUrl = uploadResult.get("url").toString();
+        String imageUrl = uploadResult.get("secure_url").toString(); // Folosim secure_url (HTTPS)
 
         Photo photo = new Photo();
         photo.setUser(user);
@@ -64,12 +64,9 @@ public class PhotoService {
 
         Photo savedPhoto = photoRepository.save(photo);
 
-        // --- NOTIFICARE ASINCRONĂ PENTRU POSTARE NOUĂ ---
         CompletableFuture.runAsync(() -> {
-            // 1. Luăm toți userii care au notifyPosts = true, EXCEPTÂND autorul pozei
             List<User> targetUsers = userRepository.findAllByNotifyPostsTrueAndIdNot(user.getId());
 
-            // 2. Trimitem notificare la fiecare
             for (User target : targetUsers) {
                 pushNotificationService.sendToUser(
                         target.getId(),
@@ -84,6 +81,7 @@ public class PhotoService {
                 savedPhoto.getId(),
                 user.getId(),
                 user.getUsername(),
+                user.getAvatarUrl(), // <-- NOU
                 savedPhoto.getImageUrl(),
                 savedPhoto.getCaption(),
                 savedPhoto.getCreatedAt(),
@@ -93,15 +91,12 @@ public class PhotoService {
     }
 
     public Page<PhotoResponse> getFeed(int page, int size, String currentUserId) {
-        // 1. Găsim utilizatorul curent
         User currentUser = userRepository.findById(UUID.fromString(currentUserId))
                 .orElseThrow(() -> new RuntimeException("Utilizatorul nu a fost găsit!"));
 
-        // 2. Extragem pozele paginate
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Page<Photo> photos = photoRepository.findAll(pageRequest);
 
-        // 3. Mapăm fiecare poză calculând dinamic like-urile
         return photos.map(photo -> {
             long likeCount = photoLikeRepository.countByPhoto(photo);
             boolean isLiked = photoLikeRepository.existsByUserAndPhoto(currentUser, photo);
@@ -110,14 +105,46 @@ public class PhotoService {
                     photo.getId(),
                     photo.getUser().getId(),
                     photo.getUser().getUsername(),
+                    photo.getUser().getAvatarUrl(), // <-- NOU
                     photo.getImageUrl(),
                     photo.getCaption(),
                     photo.getCreatedAt(),
-                    likeCount,    // <-- Numărul total de like-uri
-                    isLiked       // <-- True/False dacă userul logat a dat like
+                    likeCount,
+                    isLiked
             );
         });
     }
+
+    // --- NOU: Obține toate pozele unui utilizator specific (pentru pagina de profil) ---
+    public List<PhotoResponse> getUserPhotos(String targetUserId, String currentUserId) {
+        User targetUser = userRepository.findById(UUID.fromString(targetUserId))
+                .orElseThrow(() -> new RuntimeException("Utilizatorul căutat nu a fost găsit!"));
+
+        User currentUser = userRepository.findById(UUID.fromString(currentUserId))
+                .orElseThrow(() -> new RuntimeException("Utilizatorul curent nu a fost găsit!"));
+
+        List<Photo> userPhotos = photoRepository.findByUserOrderByCreatedAtDesc(targetUser);
+
+        return userPhotos.stream()
+                .map(photo -> {
+                    long likeCount = photoLikeRepository.countByPhoto(photo);
+                    boolean isLiked = photoLikeRepository.existsByUserAndPhoto(currentUser, photo);
+
+                    return new PhotoResponse(
+                            photo.getId(),
+                            targetUser.getId(),
+                            targetUser.getUsername(),
+                            targetUser.getAvatarUrl(),
+                            photo.getImageUrl(),
+                            photo.getCaption(),
+                            photo.getCreatedAt(),
+                            likeCount,
+                            isLiked
+                    );
+                })
+                .toList();
+    }
+
     @Transactional
     public String toggleLike(String photoId, String userId) {
         User user = userRepository.findById(UUID.fromString(userId))
@@ -159,12 +186,12 @@ public class PhotoService {
                 savedComment.getId(),
                 user.getId(),
                 user.getUsername(),
+                user.getAvatarUrl(), // <-- NOU
                 savedComment.getText(),
                 savedComment.getCreatedAt()
         );
     }
 
-    // 5. Metoda pentru obținerea comentariilor unei fotografii
     public List<CommentResponse> getCommentsForPhoto(String photoId) {
         Photo photo = photoRepository.findById(UUID.fromString(photoId))
                 .orElseThrow(() -> new RuntimeException("Fotografia nu a fost găsită!"));
@@ -176,6 +203,7 @@ public class PhotoService {
                         comment.getId(),
                         comment.getUser().getId(),
                         comment.getUser().getUsername(),
+                        comment.getUser().getAvatarUrl(), // <-- NOU
                         comment.getText(),
                         comment.getCreatedAt()
                 ))

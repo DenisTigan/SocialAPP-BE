@@ -1,16 +1,14 @@
 package com.socialapp.backend.dto;
 import java.time.LocalDateTime;
 import java.util.UUID;
+public record UserProfileResponse(
 
-public record PhotoResponse(
         UUID id,
-        UUID userId,
         String username,
+        String bio,
         String avatarUrl,
-        String imageUrl,
-        String caption,
         LocalDateTime createdAt,
-        long likeCount,
-        boolean isLikedByCurrentUser
+        long postsCount,
+        long totalLikesReceived
 ) {
 }

@@ -15,6 +15,8 @@ public interface PhotoLikeRepository extends JpaRepository<PhotoLike, UUID> {
     // Adaugate acum:
     long countByPhoto(Photo photo);
     boolean existsByUserAndPhoto(User user, Photo photo);
+
+    long countByPhoto_User(User user);
 }
 
 
