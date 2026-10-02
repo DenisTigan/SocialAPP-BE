@@ -15,6 +15,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/users")
@@ -28,10 +30,9 @@ public class UserController {
         this.photoService = photoService;
     }
 
-    // Endpoint: GET /api/users
+    // 1. GET /api/users (Toți userii, mai puțin cel logat)
     @GetMapping
     public ResponseEntity<List<UserResponse>> getAllUsers() {
-        // Extragem ID-ul utilizatorului care face cererea din token-ul JWT
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String currentUserId = authentication.getName();
 
@@ -39,7 +40,13 @@ public class UserController {
         return ResponseEntity.ok(users);
     }
 
-    // 2. NOU: GET /api/users/me (Profilul utilizatorului logat)
+    // 2. NOU: GET /api/users/online (Set cu UUID-urile tuturor userilor online acum)
+    @GetMapping("/online")
+    public ResponseEntity<Set<UUID>> getOnlineUsers() {
+        return ResponseEntity.ok(userService.getOnlineUserIds());
+    }
+
+    // 3. GET /api/users/me (Profilul utilizatorului logat)
     @GetMapping("/me")
     public ResponseEntity<UserProfileResponse> getMyProfile() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -48,13 +55,13 @@ public class UserController {
         return ResponseEntity.ok(userService.getUserProfile(currentUserId));
     }
 
-    // 3. NOU: GET /api/users/{userId}/profile (Profilul oricărui utilizator după ID)
+    // 4. GET /api/users/{userId}/profile (Profilul oricărui utilizator după ID)
     @GetMapping("/{userId}/profile")
     public ResponseEntity<UserProfileResponse> getUserProfile(@PathVariable String userId) {
         return ResponseEntity.ok(userService.getUserProfile(userId));
     }
 
-    // 4. NOU: PUT /api/users/me/bio (Actualizare descriere/bio)
+    // 5. PUT /api/users/me/bio (Actualizare descriere/bio)
     @PutMapping("/me/bio")
     public ResponseEntity<UserProfileResponse> updateBio(@RequestBody UpdateBioRequest request) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -63,7 +70,7 @@ public class UserController {
         return ResponseEntity.ok(userService.updateBio(currentUserId, request));
     }
 
-    // 5. NOU: POST /api/users/me/avatar (Upload poză de profil)
+    // 6. POST /api/users/me/avatar (Upload poză de profil)
     @PostMapping(value = "/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<UserProfileResponse> updateAvatar(@RequestParam("file") MultipartFile file) throws IOException {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -72,7 +79,7 @@ public class UserController {
         return ResponseEntity.ok(userService.updateAvatar(currentUserId, file));
     }
 
-    // 6. NOU: GET /api/users/{userId}/photos (Toate pozele postate de un user, pentru pagina de profil)
+    // 7. GET /api/users/{userId}/photos (Toate pozele postate de un user, pentru pagina de profil)
     @GetMapping("/{userId}/photos")
     public ResponseEntity<List<PhotoResponse>> getUserPhotos(@PathVariable String userId) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();

@@ -7,7 +7,11 @@ public record ConversationResponse(
         UUID partnerId,
         String partnerUsername,
         String partnerAvatarUrl,
+        boolean partnerOnline,
         String lastMessage,
-        LocalDateTime timestamp
+        LocalDateTime timestamp,
+        UUID lastMessageSenderId,
+        boolean lastMessageRead,
+        long unreadCount
 ) {
 }

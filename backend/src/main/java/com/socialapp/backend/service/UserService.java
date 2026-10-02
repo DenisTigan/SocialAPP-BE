@@ -18,6 +18,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -30,15 +31,18 @@ public class UserService {
     private final PhotoRepository photoRepository;
     private final PhotoLikeRepository photoLikeRepository;
     private final Cloudinary cloudinary;
+    private final PresenceService presenceService;
 
     public UserService(UserRepository userRepository,
                        PhotoRepository photoRepository,
                        PhotoLikeRepository photoLikeRepository,
-                       Cloudinary cloudinary) {
+                       Cloudinary cloudinary,
+                       PresenceService presenceService) {
         this.userRepository = userRepository;
         this.photoRepository = photoRepository;
         this.photoLikeRepository = photoLikeRepository;
         this.cloudinary = cloudinary;
+        this.presenceService = presenceService;
     }
 
     public List<UserResponse> getAllUsersExcept(String currentUserId) {
@@ -48,12 +52,16 @@ public class UserService {
                 .map(user -> new UserResponse(
                         user.getId(),
                         user.getUsername(),
-                        user.getAvatarUrl() // <-- NOU
+                        user.getAvatarUrl(),
+                        presenceService.isUserOnline(user.getId()) // <-- NOU
                 ))
                 .collect(Collectors.toList());
     }
 
-    // --- 1. OBȚINERE PROFIL + STATISTICI ---
+    public Set<UUID> getOnlineUserIds() {
+        return presenceService.getOnlineUserIds();
+    }
+
     public UserProfileResponse getUserProfile(String userId) {
         User user = userRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new RuntimeException("Utilizatorul nu a fost găsit!"));
@@ -61,7 +69,6 @@ public class UserService {
         return buildProfileResponse(user);
     }
 
-    // --- 2. ACTUALIZARE BIO ---
     @Transactional
     public UserProfileResponse updateBio(String userId, UpdateBioRequest request) {
         User user = userRepository.findById(UUID.fromString(userId))
@@ -78,7 +85,6 @@ public class UserService {
         return buildProfileResponse(savedUser);
     }
 
-    // --- 3. UPLOAD / SCHIMBARE POZĂ DE PROFIL ---
     @Transactional
     public UserProfileResponse updateAvatar(String userId, MultipartFile file) throws IOException {
         if (file == null || file.isEmpty()) {
@@ -88,7 +94,6 @@ public class UserService {
         User user = userRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new RuntimeException("Utilizatorul nu a fost găsit!"));
 
-        // Dacă userul avea deja o poză de profil în Cloudinary, o ștergem pe cea veche
         if (user.getAvatarPublicId() != null && !user.getAvatarPublicId().isEmpty()) {
             try {
                 cloudinary.uploader().destroy(user.getAvatarPublicId(), ObjectUtils.emptyMap());
@@ -97,7 +102,6 @@ public class UserService {
             }
         }
 
-        // Uploadăm noua poză în Cloudinary (folosim secure_url pentru HTTPS)
         Map uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.emptyMap());
         String secureUrl = uploadResult.get("secure_url").toString();
         String publicId = uploadResult.get("public_id").toString();
@@ -109,16 +113,17 @@ public class UserService {
         return buildProfileResponse(savedUser);
     }
 
-    // Metodă ajutătoare care calculează statisticile și construiește DTO-ul
     private UserProfileResponse buildProfileResponse(User user) {
         long postsCount = photoRepository.countByUser(user);
         long totalLikesReceived = photoLikeRepository.countByPhoto_User(user);
+        boolean isOnline = presenceService.isUserOnline(user.getId());
 
         return new UserProfileResponse(
                 user.getId(),
                 user.getUsername(),
                 user.getBio(),
                 user.getAvatarUrl(),
+                isOnline,
                 user.getCreatedAt(),
                 postsCount,
                 totalLikesReceived

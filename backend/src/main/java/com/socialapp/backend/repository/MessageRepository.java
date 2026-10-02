@@ -16,6 +16,10 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
             "OR (m.sender = :userB AND m.receiver = :userA) ORDER BY m.createdAt ASC")
     List<Message> findChatHistory(@Param("userA") User userA, @Param("userB") User userB);
 
-    // Adaugă sub query-ul existent pentru istoric
     List<Message> findBySenderOrReceiverOrderByCreatedAtDesc(User sender, User receiver);
+
+    // --- METODE NOI PENTRU STATUS "VĂZUT" ȘI CONTOR NECITITE ---
+    List<Message> findBySenderAndReceiverAndIsReadFalse(User sender, User receiver);
+
+    long countBySenderAndReceiverAndIsReadFalse(User sender, User receiver);
 }

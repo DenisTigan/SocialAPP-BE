@@ -24,6 +24,14 @@ public class Message {
     @Column(nullable = false, length = 1000)
     private String content;
 
+    // --- CÂMPURI NOI PENTRU STATUS "VĂZUT" (SEEN) ---
+    @Column(name = "is_read", nullable = false, columnDefinition = "boolean default false")
+    private boolean isRead = false;
+
+    @Column(name = "read_at")
+    private LocalDateTime readAt;
+    // ------------------------------------------------
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
@@ -48,6 +56,13 @@ public class Message {
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
 
+    public boolean isRead() { return isRead; }
+    public void setRead(boolean read) { isRead = read; }
+
+    public LocalDateTime getReadAt() { return readAt; }
+    public void setReadAt(LocalDateTime readAt) { this.readAt = readAt; }
+
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
 }

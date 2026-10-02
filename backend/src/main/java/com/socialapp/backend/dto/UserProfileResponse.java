@@ -7,6 +7,7 @@ public record UserProfileResponse(
         String username,
         String bio,
         String avatarUrl,
+        boolean online,
         LocalDateTime createdAt,
         long postsCount,
         long totalLikesReceived

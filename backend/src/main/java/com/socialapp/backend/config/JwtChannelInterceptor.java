@@ -1,6 +1,7 @@
 package com.socialapp.backend.config;
 
 import com.socialapp.backend.service.JwtService;
+import com.socialapp.backend.service.PresenceService;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.simp.stomp.StompCommand;
@@ -13,44 +14,63 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
+
 
 @Component
 public class JwtChannelInterceptor implements ChannelInterceptor {
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final PresenceService presenceService;
 
-    public JwtChannelInterceptor(JwtService jwtService, UserDetailsService userDetailsService) {
+    public JwtChannelInterceptor(JwtService jwtService,
+                                 UserDetailsService userDetailsService,
+                                 PresenceService presenceService) {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+        this.presenceService = presenceService;
     }
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+        if (accessor == null) return message;
 
-        // Verificăm dacă cererea este de conectare (prima inițiere a conexiunii)
-        if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
+        if (StompCommand.CONNECT.equals(accessor.getCommand())) {
             String authHeader = accessor.getFirstNativeHeader("Authorization");
 
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 String token = authHeader.substring(7);
-                String userId = jwtService.extractUserId(token); // Extragem UUID-ul din token
+                String userId = jwtService.extractUserId(token);
 
-                if (userId != null) {
+                if (userId != null && jwtService.isTokenValid(token)) {
                     UserDetails userDetails = userDetailsService.loadUserByUsername(userId);
 
-                    // Folosim metoda ta exactă, cu un singur parametru
-                    if (jwtService.isTokenValid(token)) {
-                        UsernamePasswordAuthenticationToken authentication =
-                                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
 
-                        SecurityContextHolder.getContext().setAuthentication(authentication);
-                        accessor.setUser(authentication);
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                    accessor.setUser(authentication);
+
+                    // Salvăm autentificarea în atributele sesiunii pentru frame-urile SEND ulterioare
+                    Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+                    if (sessionAttributes != null) {
+                        sessionAttributes.put("USER_AUTH", authentication);
                     }
+
+                    // Marcăm utilizatorul ca ONLINE
+                    presenceService.userConnected(accessor.getSessionId(), userId);
                 }
             }
+        } else if (accessor.getUser() == null && accessor.getSessionAttributes() != null) {
+            // Ne asigurăm că Principal-ul este prezent și pe mesajele SEND (ex: /app/chat.typing)
+            Object savedAuth = accessor.getSessionAttributes().get("USER_AUTH");
+            if (savedAuth instanceof UsernamePasswordAuthenticationToken auth) {
+                accessor.setUser(auth);
+            }
         }
+
         return message;
     }
 }

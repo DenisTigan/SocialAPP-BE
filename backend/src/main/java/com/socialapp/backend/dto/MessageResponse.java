@@ -8,6 +8,8 @@ public record MessageResponse(
         UUID senderId,
         UUID receiverId,
         String content,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        boolean isRead,
+        LocalDateTime readAt
 ) {
 }
